@@ -5,7 +5,6 @@ import com.agileboot.common.core.page.PageDTO;
 import com.agileboot.domain.common.command.BulkOperationCommand;
 import com.agileboot.domain.system.post.dto.PostDTO;
 import com.agileboot.domain.system.role.dto.RoleDTO;
-import com.agileboot.domain.system.role.model.RoleModelFactory;
 import com.agileboot.domain.system.user.command.AddUserCommand;
 import com.agileboot.domain.system.user.command.ChangeStatusCommand;
 import com.agileboot.domain.system.user.command.ResetPasswordCommand;
@@ -15,7 +14,6 @@ import com.agileboot.domain.system.user.command.UpdateUserCommand;
 import com.agileboot.domain.system.user.command.UpdateUserPasswordCommand;
 import com.agileboot.domain.system.user.dto.UserDTO;
 import com.agileboot.domain.system.user.dto.UserDetailDTO;
-import com.agileboot.domain.system.user.dto.UserInfoDTO;
 import com.agileboot.domain.system.user.dto.UserProfileDTO;
 import com.agileboot.domain.system.user.model.UserModel;
 import com.agileboot.domain.system.user.model.UserModelFactory;
@@ -60,9 +58,6 @@ public class UserApplicationService {
     @NonNull
     private TokenService tokenService;
 
-    @NonNull
-    private RoleModelFactory roleModelFactory;
-
 
     public PageDTO<UserDTO> getUserList(SearchUserQuery<SearchUserDO> query) {
         Page<SearchUserDO> userPage = userService.getUserList(query);
@@ -96,12 +91,12 @@ public class UserApplicationService {
         SysUserEntity userEntity = userService.getById(userId);
         UserDetailDTO detailDTO = new UserDetailDTO();
 
-        LambdaQueryWrapper<SysRoleEntity> roleQuery = new LambdaQueryWrapper<>();
-        roleQuery.orderByAsc(SysRoleEntity::getRoleSort);
+        LambdaQueryWrapper<SysRoleEntity> roleQuery = new LambdaQueryWrapper<SysRoleEntity>()
+            .orderByAsc(SysRoleEntity::getRoleSort);
         List<RoleDTO> roleDtoList = roleService.list(roleQuery).stream().map(RoleDTO::new).collect(Collectors.toList());
         List<PostDTO> postDtoList = postService.list().stream().map(PostDTO::new).collect(Collectors.toList());
-        detailDTO.setRoles(roleDtoList);
-        detailDTO.setPosts(postDtoList);
+        detailDTO.setRoleOptions(roleDtoList);
+        detailDTO.setPostOptions(postDtoList);
 
         if (userEntity != null) {
             detailDTO.setUser(new UserDTO(userEntity));
@@ -118,6 +113,7 @@ public class UserApplicationService {
         model.checkUsernameIsUnique();
         model.checkPhoneNumberIsUnique();
         model.checkEmailIsUnique();
+        model.checkFieldRelatedEntityExist();
         model.resetPassword(command.getPassword());
 
         model.insert();
@@ -129,6 +125,7 @@ public class UserApplicationService {
 
         model.checkPhoneNumberIsUnique();
         model.checkEmailIsUnique();
+        model.checkFieldRelatedEntityExist();
         model.updateById();
 
         CacheCenter.userCache.delete(model.getUserId());
@@ -147,9 +144,6 @@ public class UserApplicationService {
         userModel.modifyPassword(command);
         userModel.updateById();
 
-        loginUser.setEntity(userModel);
-
-        tokenService.setLoginUser(loginUser);
         CacheCenter.userCache.delete(userModel.getUserId());
     }
 
@@ -180,18 +174,6 @@ public class UserApplicationService {
         tokenService.setLoginUser(loginUser);
 
         CacheCenter.userCache.delete(userModel.getUserId());
-    }
-
-    public UserInfoDTO getUserWithRole(Long userId) {
-        UserModel userModel = userModelFactory.loadById(userId);
-        SysRoleEntity roleEntity = roleService.getById(userModel.getRoleId());
-
-        UserInfoDTO userInfoDTO = new UserInfoDTO();
-        userInfoDTO.setUser(new UserDTO(userModel));
-        if (roleEntity != null) {
-            userInfoDTO.setRole(new RoleDTO(roleEntity));
-        }
-        return userInfoDTO;
     }
 
 
